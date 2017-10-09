@@ -3,6 +3,7 @@ import sys
 import os.path
 import argparse
 import numpy as np
+import numpy.linalg
 import numpy.random
 import scipy.sparse as sparse
 import matplotlib.pyplot as plt
@@ -12,8 +13,8 @@ import timeit
 
 if __name__ == '__main__':
     # arg defaults
-    default_maxiter = 10
-    default_dset = 'kos'
+    default_maxiter = 20
+    default_dset = 'nips'
     default_ftype = 'float32'
     default_verbose = 2
 
@@ -30,11 +31,13 @@ if __name__ == '__main__':
     verbose = args.verbose
     maxiter = args.maxiter
 
+    # standardize usage of float type according to '--ftype' arg
+    def float(x):
+        return np.dtype(ftype).type(x)
 
     data_root = '/media/hdd1/projects/examples/bag-of-words'
     np.random.seed(20)
-    def float(x):
-        return np.dtype(ftype).type(x)
+    eps = float(1e-9)  # prevent divide-by-zero errors
 
     # load data
     vocab_file = os.path.join(data_root, 'vocab.{!s}.txt'.format(dset_name))
@@ -71,15 +74,19 @@ if __name__ == '__main__':
         log_res = [None, None]
         for i in range(num_class):
             # use log-probability for numerical stability
-            log_res[i] = np.log(doccounts[i]+hp_pi[i]-1) - np.log(D+np.sum(hp_pi)-1) + np.sum(np.multiply(this_wordcounts, np.log(lp_th[i][1])))
+            log_res[i] = np.log(doccounts[i]+hp_pi[i]-1+eps) - np.log(D+np.sum(hp_pi)-1+eps) + np.sum(np.multiply(this_wordcounts, np.log(lp_th[i][1]+eps)))
         bern_param = log_res[i] / (np.sum(log_res))
-        if verbose >=3: print('bern_param', bern_param)
+        if verbose >=3:
+            sys.stdout.write(' || bern_param: {:f}  | p0: {:f}, p1: {:f}'.format(bern_param, *log_res))
+            #  sys.stdout.write(' | {:f}, {:f}, {:f} | {:f}, {:f}, {:f} | cnt[0]: {:d}'.format( np.log(doccounts[0]+hp_pi[0]-1+eps), np.log(D+np.sum(hp_pi)-1+eps), np.sum(np.multiply(this_wordcounts, np.log(lp_th[0][1]+eps))), np.log(doccounts[1]+hp_pi[1]-1+eps), np.log(D+np.sum(hp_pi)-1+eps), np.sum(np.multiply(this_wordcounts, np.log(lp_th[1][1]+eps))), doccounts[0] ))
         return np.random.binomial(1, bern_param)
 
     # Sampling
     ss_iter = 0
     num_flip = []
-    while ss_iter<=maxiter:
+    diff_lp_th = []
+    for i in range(num_class): diff_lp_th.append([])
+    while ss_iter<maxiter:
         ss_iter+=1
 
         # iterate documents
@@ -98,11 +105,10 @@ if __name__ == '__main__':
             doccounts[label_was] -= 1
 
             # sample new most-likely label
+            if verbose >= 3: sys.stdout.write('iter: {:d}, doc: {:d}'.format(ss_iter, d))
             label_is = cond_label(this_wordcounts)
-            lp_l[0][i] += label_is  # add to running expectation tally
-            lp_l[1][i] = label_is   # assign to current state space vector
-
-            if verbose >= 3: print('label_was: {:d}, label_is: {:d}'.format(label_was, label_is))
+            lp_l[0][d] += label_is  # add to running expectation tally
+            lp_l[1][d] = label_is   # assign to current state space vector
 
             # add document to conditional
             #   add word counts to class "label_is"
@@ -112,9 +118,12 @@ if __name__ == '__main__':
 
             # track performance
             iter_num_flip += int(label_is!=label_was)
+            if verbose >= 3: sys.stdout.write('\n')
+            sys.stdout.flush()
 
         # sample thetas
         #   augment class wordcounts with hyperparam pseudo-counts
+        iter_diff_lp_th = []
         for i in range(num_class):
             t = wordcounts[i] + hp_th
             lp_th[i][1] = np.random.dirichlet(t)
@@ -122,9 +131,24 @@ if __name__ == '__main__':
 
         # track performance
         num_flip.append(iter_num_flip)
-        if verbose >= 2: print('iter: {:d} || num_flip: {:d}'.format(ss_iter, iter_num_flip))
+        if verbose >= 2:
+            sys.stdout.write('iter: {:d} || num_flip: {:d}'.format(ss_iter, iter_num_flip))
+            sys.stdout.write(' | counts: [0]={:d}, [1]={:d}'.format(doccounts[0], doccounts[1]))
+            sys.stdout.write('\n')
+            sys.stdout.flush()
 
 
     # show results
-    plt.plot(num_flip)
+    sys.stdout.write('\nFinal Results\n')
+    sys.stdout.write('-------------------------\n')
+    sys.stdout.write('Doccounts: [0]={:d}, [1]={:d}\n'.format(doccounts[0], doccounts[1]))
+    sys.stdout.flush()
+
+    fig1 = plt.figure()
+    ax = fig1.add_subplot(111)
+    ax.plot(num_flip)
+    ax.set_xlabel('iter')
+    ax.set_ylabel('# label reassignments')
+
     plt.show()
+
