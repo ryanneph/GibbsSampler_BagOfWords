@@ -142,13 +142,21 @@ if __name__ == '__main__':
     sys.stdout.write('\nFinal Results\n')
     sys.stdout.write('-------------------------\n')
     sys.stdout.write('Doccounts: [0]={:d}, [1]={:d}\n'.format(doccounts[0], doccounts[1]))
+
+    # most probable words for each class
+    top_n = 10
+    for i in range(num_class):
+        sort_indices = np.argsort(wordcounts[i])
+        sys.stdout.write('class {:d} top {:d} occuring words:\n'.format(i, top_n))
+        sys.stdout.write(' '.join([str(vocab[x]) for x in sort_indices[:top_n]]))
+        sys.stdout.write('\n')
+
     sys.stdout.flush()
 
-    fig1 = plt.figure()
-    ax = fig1.add_subplot(111)
-    ax.plot(num_flip)
-    ax.set_xlabel('iter')
-    ax.set_ylabel('# label reassignments')
+    #  fig1 = plt.figure()
+    #  ax = fig1.add_subplot(111)
+    #  ax.plot(num_flip)
+    #  ax.set_xlabel('iter')
+    #  ax.set_ylabel('# label reassignments')
 
-    plt.show()
-
+    #  plt.show()
