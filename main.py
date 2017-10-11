@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import fileio
 import timeit
 
+data_root = '/media/hdd1/projects/examples/bag-of-words'
 
 if __name__ == '__main__':
     # arg defaults
@@ -35,7 +36,6 @@ if __name__ == '__main__':
     def float(x):
         return np.dtype(ftype).type(x)
 
-    data_root = '/media/hdd1/projects/examples/bag-of-words'
     np.random.seed(20)
     eps = float(1e-9)  # prevent divide-by-zero errors
 
